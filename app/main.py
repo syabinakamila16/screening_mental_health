@@ -52,7 +52,10 @@ async def lifespan(app: FastAPI):
     # Security configuration logging
     if settings.require_https:
         logger.info(" HTTPS Enforcement: ENABLED")
-        if os.path.exists(settings.ssl_certfile) and os.path.exists(settings.ssl_keyfile):
+        if os.gatenv ("ENV", "development")=="production":
+            if os.path.exists ("ssl/cert.pem") and os.path.exists ("ssl/key.pem"):
+                raise RuntimeError ("SSL certificates not found for production!")  
+            # if os.path.exists(settings.ssl_certfile) and os.path.exists(settings.ssl_keyfile):
             logger.info(" SSL Certificates: LOADED")
         else:
             logger.warning("SSL Certificates: NOT FOUND - HTTPS may not work")
@@ -269,12 +272,17 @@ if __name__ == "__main__":
         else:
             logger.info("Starting without HTTPS (development mode)")
     
+    settings.debug = True
+    settings.require_https = False
+    
+    logger.info("🚀 Starting in DEVELOPMENT mode")
+    logger.info("   HTTPS: DISABLED")
+    logger.info("   Hot reload: ENABLED")
+    
     uvicorn.run(
         "app.main:app",
-        host=settings.host,
-        port=settings.port,
-        **ssl_config,
-        reload=settings.debug,
-        log_level="debug" if settings.debug else "info",
-        access_log=True
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
     )
