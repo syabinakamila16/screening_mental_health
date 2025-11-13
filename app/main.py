@@ -231,18 +231,6 @@ async def security_info():
             "allowed_origins": settings.allowed_origins,
             "api_prefix": settings.api_prefix
         },
-        "data_protection": {
-            "sensitivity_level": "HIGH - Mental Health Information",
-            "encryption": "TLS 1.2+ Required",
-            "data_persistence": "Ephemeral - No storage",
-            "compliance": "Health Data Protection Standards"
-        },
-        "security_headers": {
-            "hsts": "enabled",
-            "x_frame_options": "DENY",
-            "content_security_policy": "enabled",
-            "x_content_type_options": "nosniff"
-        }
     }
 
 # ===== APPLICATION STARTUP =====

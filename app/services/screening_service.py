@@ -42,19 +42,6 @@ class ScreeningService:
         self._request_count = 0
 
     def process_screening(self, jawaban: Dict[str, str]) -> Dict[str, Dict[str, str]]:
-        """
-        Process mental health screening with comprehensive validation and logging
-        
-        Args:
-            jawaban: Dictionary of symptom codes and severity values
-            
-        Returns:
-            Dictionary containing screening results for all diseases
-            
-        Raises:
-            ValueError: For invalid input data
-            Exception: For processing errors with proper logging
-        """
         start_time = time.time()
         self._request_count += 1
         
@@ -99,12 +86,6 @@ class ScreeningService:
             raise Exception(f"Terjadi kesalahan sistem dalam memproses screening: {str(e)}")
 
     def _validate_input(self, jawaban: Dict[str, str]) -> None:
-        """
-        Validate input data with comprehensive checks
-        
-        Raises:
-            ValueError: If any validation check fails
-        """
         if not jawaban:
             raise ValueError("Data jawaban tidak boleh kosong")
         
@@ -141,12 +122,7 @@ class ScreeningService:
         }
 
     def _calculate_cf_total(self, cf_user_input: Dict[str, Decimal]) -> Dict[str, float]:
-        """
-        Calculate total Certainty Factor for each disease using Decimal arithmetic
         
-        Returns:
-            Dictionary with disease names as keys and percentage scores as values
-        """
         hasil = {}
         
         for penyakit, gejala_list in self.DISEASE_SYMPTOMS.items():
@@ -177,12 +153,7 @@ class ScreeningService:
         return hasil
 
     def _format_results(self, hasil_cf: Dict[str, float]) -> Dict[str, Dict[str, str]]:
-        """
-        Format screening results with categories and medical recommendations
-        
-        Returns:
-            Formatted results ready for API response
-        """
+       
         output = {}
         
         for penyakit, persentase in hasil_cf.items():
@@ -197,12 +168,7 @@ class ScreeningService:
         return output
 
     def _determine_category(self, penyakit: str, persentase: float) -> Tuple[str, str]:
-        """
-        Determine disease category based on percentage score
         
-        Returns:
-            Tuple of (category, recommendation)
-        """
         if penyakit == "Depresi":
             return self._kategori_depresi(persentase)
         elif penyakit == "Kecemasan":
