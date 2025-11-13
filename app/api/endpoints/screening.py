@@ -14,11 +14,6 @@ logger = logging.getLogger(__name__)
 request_timestamps = {}
 
 async def rate_limit_check(client_ip: str, max_requests: int = 10, window: int = 60):
-    """
-    Basic rate limiting implementation
-    - 10 requests per minute per IP
-    - Prevents abuse and DDoS attacks
-    """
     current_time = time.time()
     
     # Clean old entries
@@ -42,10 +37,6 @@ async def rate_limit_check(client_ip: str, max_requests: int = 10, window: int =
     request_timestamps[client_ip].append(current_time)
 
 async def get_client_identifier(request: Request):
-    """
-    Get client identifier for rate limiting
-    Handles proxies via X-Forwarded-For header
-    """
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
         client_ip = forwarded_for.split(",")[0].strip()
@@ -59,20 +50,6 @@ async def get_client_identifier(request: Request):
     response_model=ScreeningResponse,
     summary="Mental Health Screening",
     description="""
-    Perform mental health screening using Certainty Factor algorithm.
-    
-    ## Security Features:
-    - HTTPS Encryption (enforced in production)
-    -  Rate Limiting (10 requests/minute)
-    -  Input Validation
-    -  Security Headers
-    -  No Data Persistence
-    
-    ## Data Sensitivity:
-    - **HIGH** - Mental Health Information
-    - **ENCRYPTED** - TLS 1.2+ Required
-    - **EPHEMERAL** - No storage of sensitive data
-    
     **Input Format:**
     - `jawaban`: Dictionary of symptom codes (G01-G21) and severity levels
     - **Severity Levels:** 

@@ -8,9 +8,6 @@ VALID_SEVERITY_VALUES = {"TS", "AS", "S", "SS"}
 # ===== REQUEST SCHEMAS =====
 class ScreeningRequest(BaseModel):
     """
-    Request model for mental health screening
-    
-    Attributes:
         jawaban: Dictionary of symptom codes (G01-G21) and severity levels
                 TS: Tidak Setuju (0.2)
                 AS: Agak Setuju (0.4) 

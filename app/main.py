@@ -7,88 +7,63 @@ import os
 import uvicorn
 import logging
 from contextlib import asynccontextmanager
-from typing import List
 
-# Security and application configuration
+# ==============================
+# 🔧 CONFIGURATION CLASS
+# ==============================
 class Settings:
     def __init__(self):
-        # Application settings
-        self.app_name = os.getenv("APP_NAME", "Mental Health Screening API - SECURE")
+        # Application
+        self.app_name = os.getenv("APP_NAME", "REst API Screening Kesehatan Mental")
         self.app_version = os.getenv("APP_VERSION", "1.0.0")
         self.api_prefix = os.getenv("API_PREFIX", "/api")
         self.host = os.getenv("HOST", "0.0.0.0")
-        self.port = int(os.getenv("PORT", "8443"))  # Default HTTPS port
-        self.debug = os.getenv("DEBUG", "False").lower() == "true"
-        
-        # Security settings
-        self.require_https = os.getenv("REQUIRE_HTTPS", "True").lower() == "true"
-        self.allowed_hosts = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,::1").split(",")
+        self.port = int(os.getenv("PORT", "8080"))
+        self.debug = os.getenv("DEBUG", "True").lower() == "true"
+
+        # Security
+        self.require_https = os.getenv("REQUIRE_HTTPS", "False").lower() == "true"
+        self.allowed_hosts = os.getenv("ALLOWED_HOSTS", "*").split(",")
         self.allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
         self.ssl_keyfile = os.getenv("SSL_KEYFILE", "./ssl/key.pem")
         self.ssl_certfile = os.getenv("SSL_CERTFILE", "./ssl/cert.pem")
-        
-        # Validate critical security settings in production
-        if not self.debug and self.require_https:
-            if not os.path.exists(self.ssl_keyfile) or not os.path.exists(self.ssl_certfile):
-                raise RuntimeError("SSL certificates not found for production!")
 
 settings = Settings()
 
-# Enhanced logging
+# ==============================
+#LOGGING SETUP
+# ==============================
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
+# ==============================
+#  LIFESPAN EVENTS
+# ==============================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan manager for startup and shutdown events"""
-    # Startup
-    logger.info("Starting Mental Health Screening API")
-    logger.info(f" App: {settings.app_name} v{settings.app_version}")
-    logger.info(f" Environment: {'Development' if settings.debug else 'Production'}")
-    
-    # Security configuration logging
-    if settings.require_https:
-        logger.info(" HTTPS Enforcement: ENABLED")
-        if os.gatenv ("ENV", "development")=="production":
-            if os.path.exists ("ssl/cert.pem") and os.path.exists ("ssl/key.pem"):
-                raise RuntimeError ("SSL certificates not found for production!")  
-            # if os.path.exists(settings.ssl_certfile) and os.path.exists(settings.ssl_keyfile):
-            logger.info(" SSL Certificates: LOADED")
-        else:
-            logger.warning("SSL Certificates: NOT FOUND - HTTPS may not work")
-    else:
-        logger.warning(" HTTPS Enforcement: DISABLED - Not recommended for production")
-    
-    logger.info(f"Allowed Hosts: {settings.allowed_hosts}")
-    logger.info(f"Server: {settings.host}:{settings.port}")
-    
+    logger.info("🚀 Starting Mental Health Screening API")
+    logger.info(f"App: {settings.app_name} v{settings.app_version}")
+    logger.info(f"Environment: {'Development' if settings.debug else 'Production'}")
+    logger.info(f"HTTPS required: {settings.require_https}")
+    logger.info(f"Allowed hosts: {settings.allowed_hosts}")
     yield
-    
-    # Shutdown
-    logger.info("Shutting down Mental Health Screening API")
+    logger.info("🛑 Shutting down API")
 
-# FastAPI app instance
+# ==============================
+#  FASTAPI INSTANCE
+# ==============================
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="""
     SECURE API untuk Screening Kesehatan Mental menggunakan Certainty Factor.
-    
-    ## Fitur Keamanan:
-    - Enkripsi HTTPS wajib untuk data sensitif
-    -  CORS protection dengan origin validation
-    -  Trusted host middleware
-    -  Security headers lengkap
-    -  Input validation dan sanitization
-    
-    ## Data Sensitivity:
-    - TINGGI - Data kesehatan mental
-    - ENKRIPSI - TLS 1.2+ required
-    - PEMROSESAN - Ephemeral (tidak disimpan)
-    
+       Capstone TA
+       Pengembangan Sistem Monitoring dan Intervensi Kesehatan Mental Berbasis Algoritma Pembelajaran Mendalam dan Sistem Pakar 
+       Kelompok: S1T25K05
+
     **PERINGATAN:** API ini memproses data kesehatan mental yang sangat sensitif.
     """,
     docs_url="/docs",
@@ -96,41 +71,39 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# ===== SECURITY MIDDLEWARES =====
+# ==============================
+#  MIDDLEWARE KEAMANAN
+# ==============================
 
-# Force HTTPS in production (disabled in debug mode)
+# 1. HTTPS Redirect Middleware (hanya jika production)
 if settings.require_https and not settings.debug:
     app.add_middleware(HTTPSRedirectMiddleware)
-    logger.info(" HTTPS Redirect middleware: ENABLED")
+    logger.info("✅ HTTPS Redirect Middleware diaktifkan")
 
-# Trusted hosts middleware
+# 2. Trusted Hosts Middleware
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=settings.allowed_hosts
 )
 
-# CORS middleware - security enhanced
+# 3. CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization", 
-        "Accept",
-        "X-Requested-With"
-    ],
-    expose_headers=["Content-Length", "X-Total-Count"],
-    max_age=600  # 10 minutes
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
-# Security headers middleware
+# 4. Security Headers Middleware
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
-    """Add comprehensive security headers to all responses"""
     response = await call_next(request)
-    
+
+    # Jangan blokir Swagger / Redoc / OpenAPI
+    if request.url.path.startswith(("/docs", "/redoc", "/openapi.json")):
+        return response
+
     security_headers = {
         "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
         "X-Content-Type-Options": "nosniff",
@@ -143,28 +116,16 @@ async def add_security_headers(request: Request, call_next):
         "Pragma": "no-cache",
         "X-Permitted-Cross-Domain-Policies": "none"
     }
-    
-    # Add all security headers
     for header, value in security_headers.items():
         response.headers[header] = value
-        
+
     return response
 
-# Import routers
-from app.api.endpoints.screening import router as screening_router
-
-# Include routers
-app.include_router(
-    screening_router,
-    prefix=settings.api_prefix,
-    tags=["screening"]
-)
-
-# ===== APPLICATION ENDPOINTS =====
-
+# ==============================
+# 📡 ENDPOINTS DASAR
+# ==============================
 @app.get("/")
 async def root():
-    """Root endpoint dengan informasi keamanan"""
     return {
         "message": "Secure Mental Health Screening API",
         "version": settings.app_version,
@@ -185,12 +146,11 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Comprehensive health check dengan status keamanan"""
     ssl_configured = all([
         os.path.exists(settings.ssl_certfile),
         os.path.exists(settings.ssl_keyfile)
     ])
-    
+
     return {
         "status": "healthy",
         "version": settings.app_version,
@@ -206,7 +166,6 @@ async def health_check():
 
 @app.get("/security")
 async def security_info():
-    """Detailed security information endpoint"""
     return {
         "status": "secure",
         "application": {
@@ -233,44 +192,24 @@ async def security_info():
         },
     }
 
-# ===== APPLICATION STARTUP =====
+# ==============================
+# 🔗 IMPORT ROUTER SCREENING
+# ==============================
+try:
+    from app.api.endpoints.screening import router as screening_router
+    app.include_router(screening_router, prefix=settings.api_prefix, tags=["screening"])
+except ModuleNotFoundError:
+    logger.warning("⚠️ Modul screening belum ditemukan. Pastikan 'app/api/endpoints/screening.py' tersedia.")
 
-def create_ssl_config() -> dict:
-    """Create SSL configuration dictionary"""
-    if (os.path.exists(settings.ssl_keyfile) and 
-        os.path.exists(settings.ssl_certfile) and
-        settings.require_https):
-        return {
-            "ssl_keyfile": settings.ssl_keyfile,
-            "ssl_certfile": settings.ssl_certfile
-        }
-    return {}
-
+# ==============================
+# 🏁 RUN SERVER (DEV MODE)
+# ==============================
 if __name__ == "__main__":
-    ssl_config = create_ssl_config()
-    
-    # Log startup configuration
-    if ssl_config:
-        logger.info(" Starting with HTTPS configuration")
-        logger.info(f"   Keyfile: {ssl_config['ssl_keyfile']}")
-        logger.info(f"   Certfile: {ssl_config['ssl_certfile']}")
-    else:
-        if settings.require_https:
-            logger.warning(" HTTPS required but SSL certificates not found!")
-        else:
-            logger.info("Starting without HTTPS (development mode)")
-    
-    settings.debug = True
-    settings.require_https = False
-    
-    logger.info("🚀 Starting in DEVELOPMENT mode")
-    logger.info("   HTTPS: DISABLED")
-    logger.info("   Hot reload: ENABLED")
-    
+    logger.info("🚀 Running in DEVELOPMENT mode")
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
-        port=8000,
+        host=settings.host,
+        port=settings.port,
         reload=True,
         log_level="info"
     )

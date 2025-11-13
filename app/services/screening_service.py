@@ -6,23 +6,12 @@ import time
 logger = logging.getLogger(__name__)
 
 class ScreeningService:
-    """
-    Service class for mental health screening using Certainty Factor algorithm.
-    
-    Features:
-    - Input validation and sanitization
-    - Certainty Factor calculation
-    - Category determination with medical recommendations
-    - Comprehensive logging and error handling
-    - Thread-safe operations
-    """
-    
-    # ===== CONSTANTS =====
+   
     SEVERITY_MAPPING = {
-        "TS": Decimal('0.2'),  # Tidak Setuju
-        "AS": Decimal('0.4'),  # Agak Setuju
-        "S": Decimal('0.6'),   # Setuju
-        "SS": Decimal('0.8')   # Sangat Setuju
+        "TS": Decimal('0.2'),  
+        "AS": Decimal('0.4'),  
+        "S": Decimal('0.6'),   
+        "SS": Decimal('0.8')   
     }
     
     CF_PAKAR = {f"G{i:02}": Decimal('0.9') for i in range(1, 22)}
@@ -37,7 +26,7 @@ class ScreeningService:
     VALID_SEVERITY_VALUES = set(SEVERITY_MAPPING.keys())
 
     def __init__(self):
-        """Initialize screening service with configuration"""
+
         self._processing_times = []
         self._request_count = 0
 
