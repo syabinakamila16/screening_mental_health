@@ -1,24 +1,30 @@
-from fastapi import FastAPI, Request
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 import os
 import uvicorn
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.endpoints import screening as screening_module
+from app.models.schemas import InMemoryKnowledgeProvider
+from app.services.screening_service import ScreeningService
+from app.repositories.storage import FileStorageRepository
+
 
 # ==============================
 # 🔧 CONFIGURATION CLASS
 # ==============================
 class Settings:
     def __init__(self):
-        # Application
-        self.app_name = os.getenv("APP_NAME", "REst API Screening Kesehatan Mental")
+        self.app_name = os.getenv("APP_NAME", "RESTful API Screening Kesehatan Mental")
         self.app_version = os.getenv("APP_VERSION", "1.0.0")
         self.api_prefix = os.getenv("API_PREFIX", "/api")
         self.host = os.getenv("HOST", "0.0.0.0")
-        self.port = int(os.getenv("PORT", "8080"))
+        self.port = int(os.getenv("PORT", "8000"))
         self.debug = os.getenv("DEBUG", "True").lower() == "true"
 
         # Security
@@ -28,43 +34,40 @@ class Settings:
         self.ssl_keyfile = os.getenv("SSL_KEYFILE", "./ssl/key.pem")
         self.ssl_certfile = os.getenv("SSL_CERTFILE", "./ssl/cert.pem")
 
+
 settings = Settings()
 
 # ==============================
-#LOGGING SETUP
+# LOGGING
 # ==============================
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # ==============================
-#  LIFESPAN EVENTS
+# LIFESPAN
 # ==============================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("🚀 Starting Mental Health Screening API")
+    logger.info("Starting Mental Health Screening API")
     logger.info(f"App: {settings.app_name} v{settings.app_version}")
     logger.info(f"Environment: {'Development' if settings.debug else 'Production'}")
     logger.info(f"HTTPS required: {settings.require_https}")
     logger.info(f"Allowed hosts: {settings.allowed_hosts}")
     yield
-    logger.info("🛑 Shutting down API")
+    logger.info("Shutting down API")
 
 # ==============================
-#  FASTAPI INSTANCE
+# FASTAPI INSTANCE
 # ==============================
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="""
-    SECURE API untuk Screening Kesehatan Mental menggunakan Certainty Factor.
-       Capstone TA
-       Pengembangan Sistem Monitoring dan Intervensi Kesehatan Mental Berbasis Algoritma Pembelajaran Mendalam dan Sistem Pakar 
-       Kelompok: S1T25K05
+    Produk      : S1T25B1K05
+    Modul       : Screening Kesehatan Mental menggunakan Certainty Factor
+    Instrumen   : DASS-21
+    PERINGATAN  : API ini memproses data kesehatan mental yang sensitif
 
-    **PERINGATAN:** API ini memproses data kesehatan mental yang sangat sensitif.
     """,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -72,57 +75,33 @@ app = FastAPI(
 )
 
 # ==============================
-#  MIDDLEWARE KEAMANAN
+# Dependency (bisa diganti ke DB nanti)
 # ==============================
+knowledge_provider = InMemoryKnowledgeProvider()
+screening_service = ScreeningService(knowledge_provider)
+storage_repo = FileStorageRepository(path="data/screening_results.jsonl")
 
-# 1. HTTPS Redirect Middleware (hanya jika production)
-if settings.require_https and not settings.debug:
-    app.add_middleware(HTTPSRedirectMiddleware)
-    logger.info("✅ HTTPS Redirect Middleware diaktifkan")
-
-# 2. Trusted Hosts Middleware
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=settings.allowed_hosts
-)
-
-# 3. CORS Middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
-
-# 4. Security Headers Middleware
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
-
-    # Jangan blokir Swagger / Redoc / OpenAPI
-    if request.url.path.startswith(("/docs", "/redoc", "/openapi.json")):
-        return response
-
-    security_headers = {
-        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-        "X-Content-Type-Options": "nosniff",
-        "X-Frame-Options": "DENY",
-        "X-XSS-Protection": "1; mode=block",
-        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'",
-        "Referrer-Policy": "strict-origin-when-cross-origin",
-        "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
-        "Cache-Control": "no-store, no-cache, must-revalidate",
-        "Pragma": "no-cache",
-        "X-Permitted-Cross-Domain-Policies": "none"
-    }
-    for header, value in security_headers.items():
-        response.headers[header] = value
-
-    return response
+# Inject ke modul endpoint
+screening_module.knowledge_provider = knowledge_provider  # optional
+screening_module.screening_service = screening_service
+screening_module.storage_repo = storage_repo
 
 # ==============================
-# 📡 ENDPOINTS DASAR
+# MIDDLEWARE KEAMANAN (opsional, aktifkan bila siap)
+# ==============================
+# if settings.require_https and not settings.debug:
+#     app.add_middleware(HTTPSRedirectMiddleware)
+# app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=settings.allowed_origins,
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
+# ==============================
+# ROUTES DASAR
 # ==============================
 @app.get("/")
 async def root():
@@ -133,15 +112,14 @@ async def root():
         "security": {
             "https_required": settings.require_https,
             "data_sensitivity": "HIGH - Mental Health Data",
-            "encryption": "TLS 1.2+ Required"
+            "encryption": "TLS 1.2+ Required",
         },
         "endpoints": {
             "docs": "/docs",
             "health": "/health",
             "security": "/security",
-            "screening": f"{settings.api_prefix}/screening"
+            "screening": f"{settings.api_prefix}/screening",
         },
-        "warning": "This API handles sensitive health data - Proper security protocols are enforced"
     }
 
 @app.get("/health")
@@ -150,7 +128,6 @@ async def health_check():
         os.path.exists(settings.ssl_certfile),
         os.path.exists(settings.ssl_keyfile)
     ])
-
     return {
         "status": "healthy",
         "version": settings.app_version,
@@ -161,7 +138,7 @@ async def health_check():
             "trusted_hosts": len(settings.allowed_hosts),
             "cors_enabled": len(settings.allowed_origins) > 0
         },
-        "timestamp": __import__('datetime').datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 @app.get("/security")
@@ -193,16 +170,23 @@ async def security_info():
     }
 
 # ==============================
-# 🔗 IMPORT ROUTER SCREENING
+# ROUTER SCREENING
 # ==============================
-try:
-    from app.api.endpoints.screening import router as screening_router
-    app.include_router(screening_router, prefix=settings.api_prefix, tags=["screening"])
-except ModuleNotFoundError:
-    logger.warning("⚠️ Modul screening belum ditemukan. Pastikan 'app/api/endpoints/screening.py' tersedia.")
+app.include_router(screening_module.router, prefix=settings.api_prefix, tags=["screening"])
 
 # ==============================
-# 🏁 RUN SERVER (DEV MODE)
+# STARTUP / SHUTDOWN (opsional untuk DB/cache nanti)
+# ==============================
+@app.on_event("startup")
+async def on_startup():
+    pass
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    pass
+
+# ==============================
+# RUN SERVER (DEV)
 # ==============================
 if __name__ == "__main__":
     logger.info("🚀 Running in DEVELOPMENT mode")
@@ -211,5 +195,5 @@ if __name__ == "__main__":
         host=settings.host,
         port=settings.port,
         reload=True,
-        log_level="info"
+        log_level="info",
     )

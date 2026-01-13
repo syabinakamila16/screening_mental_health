@@ -1,21 +1,30 @@
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
+from app.models.schemas import ScreeningRequest, ScreeningResponse, knowledge_provider
 import time
 import logging
-from typing import Dict
+import uuid
 
-from app.models.schemas import ScreeningRequest, ScreeningResponse
-from app.services.screening_service import screening_service
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
+
+from app.services.screening_service import ScreeningService
+from app.repositories.storage import FileStorageRepository
+from app.services.screening_service import ScreeningService  
+from app.repositories.storage import FileStorageRepository
+
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Simple rate limiting storage
+# Akan dioverride dari main.py (module assignment). Diset None untuk menghindari warning.
+screening_service: ScreeningService | None = None
+storage_repo: FileStorageRepository | None = None
+knowledge_provider = None  # optional, jika ingin diakses
+
+# Rate limiting storage (in-memory)
 request_timestamps = {}
 
 async def rate_limit_check(client_ip: str, max_requests: int = 10, window: int = 60):
     current_time = time.time()
-    
     # Clean old entries
     window_start = current_time - window
     if client_ip in request_timestamps:
@@ -39,11 +48,8 @@ async def rate_limit_check(client_ip: str, max_requests: int = 10, window: int =
 async def get_client_identifier(request: Request):
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
-        client_ip = forwarded_for.split(",")[0].strip()
-    else:
-        client_ip = request.client.host
-    
-    return client_ip
+        return forwarded_for.split(",")[0].strip()
+    return request.client.host
 
 @router.post(
     "/screening",
@@ -57,7 +63,6 @@ async def get_client_identifier(request: Request):
       - AS: Agak Setuju (Somewhat Agree)
       - S: Setuju (Agree) 
       - SS: Sangat Setuju (Strongly Agree)
-    
     **Example Request:**
     ```json
     {
@@ -124,77 +129,58 @@ async def screening_endpoint(
 ):
     """
     Mental Health Screening Endpoint
-    
     Processes mental health screening requests with comprehensive security measures
     including rate limiting, input validation, and secure response headers.
     """
+    global screening_service, storage_repo
+    # Fallback default jika main tidak meng-assign
+    if screening_service is None:
+        from app.models.schemas import knowledge_provider as kp_default
+        screening_service = ScreeningService(kp_default)
+    if storage_repo is None:
+        storage_repo = FileStorageRepository(path="data/screening_results.jsonl")
+
     client_ip = await get_client_identifier(request)
-    
+
     try:
-        # Apply rate limiting
         await rate_limit_check(client_ip)
-        
         # Log the request (anonymized)
         logger.info(
             f"Screening request - IP: {client_ip}, "
             f"Symptoms: {len(screening_data.jawaban)}, "
             f"Secure: {request.url.scheme == 'https'}"
         )
-        
-        # Process screening - validation handled by Pydantic schemas
-        result = screening_service.process_screening(screening_data.jawaban)
-        
-        # Log successful processing
-        logger.info(f"Screening completed for {client_ip}")
-        
-        # Create response with security headers
-        response = JSONResponse(content=result)
-        
-        # Additional security headers
+
+        presentation_results, percentages = screening_service.process_screening(screening_data.jawaban)
+
+        # Persist percentages (tidak mengganggu response jika gagal)
+        try:
+            record = {
+                "id": str(uuid.uuid4()),
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "client_ip": client_ip,  # pertimbangkan hashing/anonim sesuai kebijakan
+                "percentages": percentages,
+                "meta": {
+                    "symptoms_count": len(screening_data.jawaban),
+                    "schema_version": 1
+                }
+            }
+            storage_repo.save_percentages(record)
+        except Exception:
+            logger.error("Failed to persist percentages", exc_info=True)
+
+        response = JSONResponse(content=presentation_results)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        
-        # Add HSTS header if using HTTPS
         if request.url.scheme == "https":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        
         return response
-        
+
     except ValueError as e:
-        # Input validation errors from service layer
         logger.warning(f"Validation error from {client_ip}: {str(e)}")
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
-        # Re-raise existing HTTP exceptions (like rate limit)
         raise
     except Exception as e:
-        # Generic error to avoid information leakage
         logger.error(f"Processing error from {client_ip}: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error occurred"
-        )
-
-@router.get("/screening/security")
-async def security_info():
-    """
-    Security Information Endpoint
-    
-    Provides information about security measures implemented for the screening API.
-    """
-    return {
-        "endpoint": "/api/screening",
-        "security_level": "HIGH",
-        "data_sensitivity": "Mental Health Information",
-        "security_measures": {
-            "https": "Required in production",
-            "rate_limiting": "10 requests per minute per IP",
-            "input_validation": "Comprehensive symptom code and value validation",
-            "data_persistence": "None - ephemeral processing only",
-            "encryption": "TLS 1.2+ required for production"
-        },
-        "compliance": "Health data protection standards"
-    }
+        raise HTTPException(status_code=500, detail="Internal server error occurred")
