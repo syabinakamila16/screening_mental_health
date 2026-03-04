@@ -17,13 +17,15 @@ class ScreeningRequest(BaseModel):
                 AS: Agak Setuju (0.4) 
                 S: Setuju (0.6)
                 SS: Sangat Setuju (0.8)
+                
+        Semua 21 gejala (G01-G21) wajib diisi.
     """
     
     jawaban: Dict[str, Literal["TS", "AS", "S", "SS"]] = Field(
         ...,
         description=(
             "Dictionary of symptom codes and severity levels\n\n"
-            "**Valid Symptom Codes:** G01-G21\n"
+            "**Valid Symptom Codes:** G01-G21 (semua 21 gejala wajib diisi)\n"
             "**Valid Severity Values:** TS, AS, S, SS\n\n"
             "Example:\n"
             "```json\n"
@@ -31,26 +33,35 @@ class ScreeningRequest(BaseModel):
             '  "G01": "SS",\n'
             '  "G02": "S",\n' 
             '  "G03": "AS",\n'
-            '  "G04": "TS"\n'
+            '  "G04": "TS",\n'
+            '  "...": "...",\n'
+            '  "G21": "S"\n'
             "}\n"
             "```"
         ),
-        example={
-            "G01": "SS",
-            "G02": "S", 
-            "G03": "AS",
-            "G04": "TS"
-        }
+        example={f"G{i:02}": "TS" for i in range(1, 22)}
     )
     
     @validator('jawaban')
     def validate_symptom_codes(cls, v):
-        "Validate all symptom codes are within G01-G21"
+        """Validate all 21 symptom codes (G01-G21) are present and valid"""
         if not v:
-            raise ValueError("Minimal harus ada 1 gejala yang diisi")
+            raise ValueError("Semua 21 gejala wajib diisi (G01-G21)")
+        
+        # Cek kode tidak valid (di luar G01-G21)
         invalid_codes = [c for c in v.keys() if c not in VALID_SYMPTOM_CODES]
         if invalid_codes:
-            raise ValueError(f"Kode gejala tidak valid: {', '.join(invalid_codes)}. Harus G01-G21")
+            raise ValueError(
+                f"Kode gejala tidak valid: {', '.join(sorted(invalid_codes))}. Harus G01-G21"
+            )
+        
+        # Cek gejala yang belum diisi
+        missing_codes = VALID_SYMPTOM_CODES - v.keys()
+        if missing_codes:
+            raise ValueError(
+                f"Gejala belum diisi: {', '.join(sorted(missing_codes))}. Semua 21 gejala wajib diisi"
+            )
+        
         return v
     
 # ===== RESPONSE SCHEMAS =====
@@ -87,9 +98,9 @@ class InMemoryKnowledgeProvider(KnowledgeProvider):
     def __init__(self):
         self.cf_pakar = {f"G{i:02}": Decimal('0.9') for i in range(1, 22)}
         self.disease_symptoms = {
-            "Depresi": ["G04", "G05", "G10", "G13", "G16", "G17", "G21"],
+            "Depresi":   ["G04", "G05", "G10", "G13", "G16", "G17", "G21"],
             "Kecemasan": ["G02", "G03", "G07", "G09", "G15", "G19", "G20"],
-            "Stres": ["G01", "G06", "G08", "G11", "G12", "G14", "G18"]
+            "Stres":     ["G01", "G06", "G08", "G11", "G12", "G14", "G18"]
         }
 
     def get_cf_pakar(self, symptom_code: str) -> Decimal:
