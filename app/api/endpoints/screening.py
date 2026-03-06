@@ -1,7 +1,6 @@
 from app.models.schemas import ScreeningRequest, ScreeningResponse, knowledge_provider
 import time
 import logging
-import uuid
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -19,37 +18,6 @@ logger = logging.getLogger(__name__)
 screening_service: ScreeningService | None = None
 storage_repo: FileStorageRepository | None = None
 knowledge_provider = None  # optional, jika ingin diakses
-
-# Rate limiting storage (in-memory)
-request_timestamps = {}
-
-async def rate_limit_check(client_ip: str, max_requests: int = 10, window: int = 60):
-    current_time = time.time()
-    # Clean old entries
-    window_start = current_time - window
-    if client_ip in request_timestamps:
-        request_timestamps[client_ip] = [
-            ts for ts in request_timestamps[client_ip] 
-            if ts > window_start
-        ]
-    else:
-        request_timestamps[client_ip] = []
-    
-    # Check rate limit
-    if len(request_timestamps[client_ip]) >= max_requests:
-        logger.warning(f"Rate limit exceeded for IP: {client_ip}")
-        raise HTTPException(
-            status_code=429,
-            detail=f"Rate limit exceeded. Maximum {max_requests} requests per {window} seconds."
-        )
-    
-    request_timestamps[client_ip].append(current_time)
-
-async def get_client_identifier(request: Request):
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    return request.client.host
 
 @router.post(
     "/screening",

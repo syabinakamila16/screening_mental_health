@@ -1,11 +1,9 @@
 from typing import Dict, Any
 import json
 from datetime import datetime
-import uuid
 import os
 import logging
-# Repositori penyimpanan untuk persentase penyaringan persisten.
-# Modul ini menyediakan antarmuka kecil dan implementasi berbasis file yang sederhana.
+
 # Ganti FileStorageRepository dengan implementasi berbasis basis data (DBStorageRepository)
 # saat beralih ke produksi.
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pydantic import BaseModel, Field, validator
-from typing import Dict, Literal, List
+from typing import Dict, List
 from decimal import Decimal
 import os
 
@@ -21,7 +21,9 @@ class ScreeningRequest(BaseModel):
         Semua 21 gejala (G01-G21) wajib diisi.
     """
     
-    jawaban: Dict[str, Literal["TS", "AS", "S", "SS"]] = Field(
+    # Menggunakan Dict[str, str] agar semua validasi dikontrol penuh oleh validator custom,
+    # bukan oleh Pydantic Literal yang menghasilkan pesan error generik tidak informatif.
+    jawaban: Dict[str, str] = Field(
         ...,
         description=(
             "Dictionary of symptom codes and severity levels\n\n"
@@ -44,24 +46,37 @@ class ScreeningRequest(BaseModel):
     
     @validator('jawaban')
     def validate_symptom_codes(cls, v):
-        """Validate all 21 symptom codes (G01-G21) are present and valid"""
+        """Validate input: kosong, kode gejala, nilai severity, dan kelengkapan 21 gejala"""
+
+        # 1. Cek input kosong
         if not v:
-            raise ValueError("Semua 21 gejala wajib diisi (G01-G21)")
-        
-        # Cek kode tidak valid (di luar G01-G21)
+            raise ValueError("Data kosong. Semua 21 gejala (G01-G21) wajib diisi")
+
+        # 2. Cek kode gejala tidak valid (di luar G01-G21)
         invalid_codes = [c for c in v.keys() if c not in VALID_SYMPTOM_CODES]
         if invalid_codes:
             raise ValueError(
                 f"Kode gejala tidak valid: {', '.join(sorted(invalid_codes))}. Harus G01-G21"
             )
-        
-        # Cek gejala yang belum diisi
+
+        # 3. Cek nilai severity tidak valid (bukan TS/AS/S/SS)
+        invalid_severity = {
+            code: val for code, val in v.items()
+            if val not in VALID_SEVERITY_VALUES
+        }
+        if invalid_severity:
+            detail = ", ".join(f"{k}='{val}'" for k, val in sorted(invalid_severity.items()))
+            raise ValueError(
+                f"Nilai severity tidak valid: {detail}. Harus salah satu dari: TS, AS, S, SS"
+            )
+
+        # 4. Cek kelengkapan — semua 21 gejala wajib diisi
         missing_codes = VALID_SYMPTOM_CODES - v.keys()
         if missing_codes:
             raise ValueError(
                 f"Gejala belum diisi: {', '.join(sorted(missing_codes))}. Semua 21 gejala wajib diisi"
             )
-        
+
         return v
     
 # ===== RESPONSE SCHEMAS =====
