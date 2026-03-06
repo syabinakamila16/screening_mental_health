@@ -144,7 +144,7 @@ class ScreeningService:
 
     # --- kategori helpers (selalu return 3 nilai) ---
     def _kategori_depresi(self, persentase: float) -> Tuple[str, str, str]:
-        if persentase >= 97:
+        if persentase >= 96:
             return ("Sangat Berat",
                     "Pikiran bunuh diri, putus asa",
                     "Segera hubungi psikiater/layanan darurat; pendampingan keluarga.")
@@ -166,7 +166,7 @@ class ScreeningService:
                     "Pertahankan gaya hidup sehat; monitoring jika ada stresor baru.")
 
     def _kategori_kecemasan(self, persentase: float) -> Tuple[str, str, str]:
-        if persentase >= 97:
+        if persentase >= 96:
             return ("Sangat Berat",
                     "Serangan panik / takut intens",
                     "Psikiater/psikolog segera; teknik grounding; evaluasi obat.")
@@ -188,7 +188,7 @@ class ScreeningService:
                     "Lanjutkan pola hidup sehat; kontrol jika keluhan muncul.")
 
     def _kategori_stres(self, persentase: float) -> Tuple[str, str, str]:
-        if persentase >= 97:
+        if persentase >= 96:
             return ("Sangat Berat",
                     "Burnout/gangguan fungsi",
                     "Pertimbangkan cuti; dukungan profesional; atur beban kerja.")
